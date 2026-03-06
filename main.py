@@ -1,10 +1,12 @@
 """
-Злой Демон 3.0 — Полная версия для Render.com
+Злой Демон 3.0 — ФИНАЛЬНАЯ ВЕРСИЯ для Render.com
+Работает через Webhook, не конфликтует
 """
 
 import asyncio
 import logging
 import random
+import os
 from datetime import datetime
 from typing import Dict, List, Any
 
@@ -15,6 +17,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 # ========== ТВОИ ДАННЫЕ ==========
 BOT_TOKEN = "8611498047:AAF4IGy-mV-GN4MfvDBrzGDuiotPqWLMyqE"
@@ -401,17 +405,50 @@ async def handle_all_messages(message: Message):
         await message.reply(insult)
         db.stats["evil_responses"] += 1
 
-# ========== УДАЛЕНИЕ ВЕБХУКА И ЗАПУСК ==========
+# ========== WEBHOOK ==========
 async def on_startup():
-    """Действия при запуске"""
-    await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("✅ Webhook удалён")
+    """Установка вебхука при запуске"""
+    # Получаем URL из переменной окружения Render
+    render_url = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+    if render_url:
+        webhook_url = f"https://{render_url}/webhook"
+    else:
+        # Для локального тестирования
+        webhook_url = "https://your-app.onrender.com/webhook"
+    
+    await bot.set_webhook(webhook_url, drop_pending_updates=True)
+    logger.info(f"✅ Вебхук установлен на {webhook_url}")
 
-async def main():
-    """Главная функция запуска"""
-    await on_startup()
-    logger.info("🚀 Бот запускается...")
-    await dp.start_polling(bot)
+async def on_shutdown():
+    """Удаление вебхука при остановке"""
+    await bot.delete_webhook()
+    logger.info("👋 Вебхук удалён")
 
+def main():
+    """Запуск через вебхук"""
+    # Регистрируем функции запуска и остановки
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+    
+    # Создаём веб-приложение
+    app = web.Application()
+    
+    # Настраиваем обработчик вебхуков
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+    webhook_requests_handler.register(app, path="/webhook")
+    
+    # Настраиваем приложение
+    setup_application(app, dp, bot=bot)
+    
+    # Получаем порт из переменной окружения Render
+    port = int(os.environ.get("PORT", 10000))
+    
+    logger.info(f"🚀 Запуск веб-сервера на порту {port}")
+    web.run_app(app, host="0.0.0.0", port=port)
+
+# ========== ЗАПУСК ==========
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()  # ← ВОТ ТАК ДОЛЖНО БЫТЬ! БЕЗ asyncio.run()
