@@ -1,12 +1,10 @@
 """
 Злой Демон 3.0 — Полная версия для Render.com
-Инструкция: замени BOT_TOKEN и OWNER_ID на свои
 """
 
 import asyncio
 import logging
 import random
-import os
 from datetime import datetime
 from typing import Dict, List, Any
 
@@ -23,31 +21,23 @@ BOT_TOKEN = "8611498047:AAF4IGy-mV-GN4MfvDBrzGDuiotPqWLMyqE"
 OWNER_ID = 6376163988
 # ================================
 
-# Настройка логирования (ОДИН РАЗ!)
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Инициализация бота (ОДИН РАЗ!)
+# Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
-
-# ✨ УДАЛЯЕМ ВЕБХУК, ЕСЛИ БЫЛ ✨
-async def delete_webhook():
-    await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("✅ Webhook удалён (если был)")
-asyncio.run(delete_webhook())
-
-# Инициализация диспетчера (ОДИН РАЗ!)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # ========== БАЗА ДАННЫХ ==========
 class Database:
     def __init__(self):
-        self.enemies: List[int] = []  # ID врагов
-        self.saved_messages: Dict[int, Dict] = {}  # Сохранённые сообщения
+        self.enemies: List[int] = []
+        self.saved_messages: Dict[int, Dict] = {}
         self.stats: Dict[str, int] = {
             "evil_responses": 0,
             "deleted_saved": 0,
@@ -411,8 +401,15 @@ async def handle_all_messages(message: Message):
         await message.reply(insult)
         db.stats["evil_responses"] += 1
 
-# ========== ЗАПУСК ==========
+# ========== УДАЛЕНИЕ ВЕБХУКА И ЗАПУСК ==========
+async def on_startup():
+    """Действия при запуске"""
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("✅ Webhook удалён")
+
 async def main():
+    """Главная функция запуска"""
+    await on_startup()
     logger.info("🚀 Бот запускается...")
     await dp.start_polling(bot)
 
